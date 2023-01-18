@@ -5,7 +5,7 @@ How to install on local:
 ## Installation
 * Git clone "repo"
 ```
-* self:plugin:install lcm-deploy
+* terminus self:plugin:install lcm-deploy
 ```
 
 ## Usage
