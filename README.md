@@ -1,6 +1,18 @@
-# terminus-plugin-lcm-deploy
-Terminus plugin for deployment on Pantheon
+# Terminus Plugin LCM Deploy
 
-Local setup:
-1. Git clone
-2. in same directory run: terminus self:plugin:install lcm-deploy
+How to install on local:
+
+## Installation
+* Git clone "repo"
+```
+* self:plugin:install lcm-deploy
+```
+
+## Usage
+
+```
+terminus lcm-deploy <site.env>
+```
+
+## Help
+Run `terminus lcm-deploy --help` for help.
