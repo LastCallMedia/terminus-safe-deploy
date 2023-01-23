@@ -82,7 +82,7 @@ class LcmDrushCommand extends DrushCommand {
    *
    * This is an exact copy of the method above, but with protected access.
    */
-  protected function prepareEnvironment($site_env)
+  protected function LCMPrepareEnvironment($site_env)
   {
     $this->site = $this->getSite($site_env);
     $this->environment = $this->getEnv($site_env);
