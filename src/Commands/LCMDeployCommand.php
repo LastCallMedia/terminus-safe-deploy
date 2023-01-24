@@ -238,7 +238,7 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
         }
 
         // TODO: Slack url is hard coded.
-        $slack = new Slack('https://hooks.slack.com/services/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');
+        $slack = new Slack();
         $slack->build($content)->post();
     }
 }
