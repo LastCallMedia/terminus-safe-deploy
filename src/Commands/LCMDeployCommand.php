@@ -21,11 +21,34 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
     use WorkflowProcessingTrait;
     use StructuredListTrait;
 
+  /**
+   * Determine if it is safe to deploy.
+   *
+   * @command lcm-deploy:check-safety
+   */
+    public function checkDeploySafety($site_dot_env, $throw = true)
+    {
+        // Before Deployment check are there any Configuration changes.
+        $this->LCMPrepareEnvironment($site_dot_env);
+        $this->requireSiteIsNotFrozen($site_dot_env);
+
+        // If there is a config override, then rerun the command to output the
+        // status.
+        if ($this->sendCommandViaSshAndParseJsonOutput('drush cst')) {
+            $this->drushCommand($site_dot_env, ['cst']);
+            if ($throw) {
+                throw new TerminusProcessException("There is overridden configuration on the target environment. Deploying is not automatically considered safe.");
+            } else {
+                $this->log()->warning('Flagging as safe, even through there is overridden configuration.');
+            }
+        }
+    }
+
     /**
      * LCM Deploy script by checking configuration
      *
-     * @command lcm-deploy
-     * @aliases lcm:deploy
+     * @command lcm-deploy:deploy
+     * @alias lcm-deploy
      *
      * @param $site_dot_env Web site name and environment with dot, example - mywebsite.test
      * @option string $force-deploy Run terminus lcm-deploy <site>.<env> --force-deploy to force deployment.
