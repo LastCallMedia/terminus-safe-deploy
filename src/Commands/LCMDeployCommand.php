@@ -24,9 +24,9 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
   /**
    * Determine if it is safe to deploy.
    *
-   * @command lcm-deploy:check-safety
+   * @command lcm-deploy:check-config
    */
-    public function checkDeploySafety($site_dot_env, $throw = true)
+    public function checkConfig($site_dot_env, $throw = true)
     {
         // Before Deployment check are there any Configuration changes.
         $this->LCMPrepareEnvironment($site_dot_env);
@@ -41,7 +41,14 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
             } else {
                 $this->log()->warning('Flagging as safe, even through there is overridden configuration.');
             }
+        } else {
+            $this->log()->notice('Configuration is in sync on target environment.');
         }
+    }
+
+    public function isDeployable()
+    {
+        return $this->environment->hasDeployableCode();
     }
 
     /**
@@ -64,19 +71,14 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
     public function checkAndDeploy(
         $site_dot_env,
         $options = [
-                                     'force-deploy' => false,
-                                     'with-cim' => false,
-                                     'with-updates' => false,
-                                     'clear-env-caches' => false,
-                                     'with-backup' => false,
-                                     'deploy-message' => 'Deploy from Terminus by lcm-deploy',
-                                   ]
+           'force-deploy' => false,
+           'with-cim' => false,
+           'with-updates' => false,
+           'clear-env-caches' => false,
+           'with-backup' => false,
+           'deploy-message' => 'Deploy from Terminus by lcm-deploy',
+        ]
     ) {
-        if (!$this->session()->isActive()) {
-            throw new TerminusException(
-                'You are not logged in. Run `auth:login` to authenticate or `help auth:login` for more info.'
-            );
-        }
 
         $this->LCMPrepareEnvironment($site_dot_env);
         $this->requireSiteIsNotFrozen($site_dot_env);
@@ -89,48 +91,19 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
             ['env_name' => $environment_name, 'previous_env' => $previous_env ]
         );
 
-        if (!$this->environment->hasDeployableCode()) {
-            $this->log()->notice('There is nothing to deploy.');
-            return;
+        if (!$this->isDeployable()) {
+            throw new TerminusProcessException('There is no code to deploy.');
         }
 
-        // After all deployment steps need to clear Drupal cache by Default.
-        $this->log()->notice('Clearing Drupal Caches before deployment to avoid db and code resynchronization.');
-        $this->drushCommand($site_dot_env, ['cache-rebuild']);
-
-        // Before Deployment check are there any Configuration changes.
-        $diff = $this->sendCommandViaSshAndParseJsonOutput('drush cst');
-
-        if ($diff) {
-            $this->drushCommand($site_dot_env, ['cst']);
-            $this->log()->error(
-                'There are configuration differences on {env_name} environment.',
-                ['env_name' => $environment_name]
-            );
-            if (empty($options['force-deploy']) && !$this->confirm(
-                "Are you sure you want to CONTINUE?\n"
-            )
-            ) {
-                return;
-            }
-        } else {
-            $this->log()->notice('There are no configuration differences.');
-        }
-
-        //Check if backup needed before deployment
-        if (!empty($options['with-backup'])) {
-            $this->log()->notice(
-                'Backup {environment} environment\'s DB and source codes before deployment.',
-                ['environment' => $environment_name]
-            );
-            $this->backupEnvironment();
-        }
+        $this->checkConfig($site_dot_env, $options['force-deploy']);
 
         // Deploy function.
         $this->deployToEnv($options['deploy-message']);
 
         // Running Configuration import after deployment.
         if (!empty($options['with-cim'])) {
+            $this->log()->notice('Clearing Drupal Caches...');
+            $this->drushCommand($site_dot_env, ['cache-rebuild']);
             $this->log()->notice('Running configuration import...');
             $this->drushCommand($site_dot_env, ['config-import', '-y']);
         }
@@ -142,8 +115,8 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
         }
 
         // After all deployment steps need to clear Drupal cache by Default.
-        $this->log()->notice('Clearing Drupal Caches...');
-        $this->drushCommand($site_dot_env, ['cache-rebuild']);
+      $this->log()->notice('Clearing Drupal Caches...');
+      $this->drushCommand($site_dot_env, ['cache-rebuild']);
 
         // Check if clear-env-caches option is set, then need to clear also environment caches.
         if (!empty($options['clear-env-caches'])) {
