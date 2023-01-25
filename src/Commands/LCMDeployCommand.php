@@ -92,7 +92,7 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
         );
 
         if (!$this->isDeployable()) {
-            throw new TerminusProcessException('There is no code to deploy.');
+//            throw new TerminusProcessException('There is no code to deploy.');
         }
 
         $this->checkConfig($site_dot_env, $options['force-deploy']);
