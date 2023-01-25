@@ -93,7 +93,7 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
         );
 
         if (!$this->isDeployable()) {
-            $this->fail('There is no code to deploy.', true);
+            $this->fail('There is no code to deploy.', $options['slack-alert']);
         }
 
         try {
@@ -127,12 +127,10 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
                 );
             }
         } catch (\Exception $e) {
-            $this->fail($e->getMessage());
+            $this->fail($e->getMessage(), $options['slack-alert']);
         }
 
-        if ($options['slack-alert']) {
-            $this->succeed($options['deploy-message']);
-        }
+        $this->succeed($options['deploy-message'], $options['slack-alert']);
     }
 
   /**
