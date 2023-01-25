@@ -77,6 +77,7 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
            'clear-env-caches' => false,
            'with-backup' => false,
            'deploy-message' => 'Deploy from Terminus by lcm-deploy',
+           'slack-alert' => false,
         ]
     ) {
 
@@ -115,8 +116,8 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
         }
 
         // After all deployment steps need to clear Drupal cache by Default.
-      $this->log()->notice('Clearing Drupal Caches...');
-      $this->drushCommand($site_dot_env, ['cache-rebuild']);
+        $this->log()->notice('Clearing Drupal Caches...');
+        $this->drushCommand($site_dot_env, ['cache-rebuild']);
 
         // Check if clear-env-caches option is set, then need to clear also environment caches.
         if (!empty($options['clear-env-caches'])) {
@@ -127,7 +128,9 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
             );
         }
 
-        $this->slackNotification();
+        if ($options['slack-alert']) {
+            $this->slackNotification();
+        }
     }
 
   /**
