@@ -9,7 +9,7 @@ use Pantheon\Terminus\Site\SiteAwareInterface;
 use Pantheon\Terminus\Site\SiteAwareTrait;
 use Pantheon\Terminus\Commands\StructuredListTrait;
 
-use Pantheon\LCMDeployCommand\Model\Slack;
+use Pantheon\LCMDeployCommand\Slack;
 use SlackPhp\BlockKit\Blocks\Divider;
 use SlackPhp\BlockKit\Blocks\Section;
 use SlackPhp\BlockKit\Surfaces\Message;
