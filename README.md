@@ -4,7 +4,7 @@ How to install on local:
 
 ## Installation
 ```
-terminus self:plugin:install git@github.com:LastCallMedia/terminus-plugin-lcm-deploy.git
+terminus self:plugin:install git@github.com:LastCallMedia/terminus-safe-deploy.git
 ```
 Or you can clone it and install from local:
 * Git clone "repo"
@@ -15,7 +15,7 @@ Or you can clone it and install from local:
 ## Usage
 
 ```
-terminus lcm-deploy <site.env>
+terminus safe-deploy:deploy <site.env>
 ```
 
 ## Help
