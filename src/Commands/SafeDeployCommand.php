@@ -9,7 +9,7 @@ use Pantheon\Terminus\Exceptions\TerminusProcessException;
 use Pantheon\Terminus\Site\SiteAwareInterface;
 use Pantheon\Terminus\Site\SiteAwareTrait;
 use Pantheon\Terminus\Commands\StructuredListTrait;
-use SlackPhp\BlockKit\Blocks\Divider;
+use SlackPhp\BlockKit\Blocks\Context;
 use SlackPhp\BlockKit\Blocks\Section;
 use SlackPhp\BlockKit\Surfaces\Message;
 
@@ -234,13 +234,15 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
             $source_environment = $this->getPreviousEnv($target_environment);
             $msg = new Message(
                 blocks: [
-                    new Section("🚨Deployment failed: *$site_name* - $source_environment ➤ $target_environment"),
+                    new Context(['text' => "🚨Deployment failed: *$site_name* - $source_environment ➤ $target_environment"]),
                     new Section("Reason: `$reason`"),
-                    new Divider(),
-                    new Section("Initiated by: {$this->getUserName()}")
+                    new Context(['text' => "Initiated by: {$this->getUserName()}"]),
                 ],
                 ephemeral: false,
             );
+            if ($link = getenv('SLACK_MESSAGE_CONTEXT_LINK')) {
+                $msg->blocks->append(new Context(['text' => $link]));
+            }
             $this->postToSlack($msg);
         }
         throw new TerminusProcessException($reason);
@@ -258,13 +260,16 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
 
             $msg = new Message(
                 blocks: [
-                    new Section("✅ Deployment completed: *$site_name* - $source_environment ➤ $target_environment"),
+                    new Context(['text' => "✅ Deployment completed: *$site_name* - $source_environment ➤ $target_environment"]),
                     new Section("Message: `$message`"),
-                    new Divider(),
-                    new Section("Initiated by: {$this->getUserName()}")
+                    new Context(['text' => "Initiated by: {$this->getUserName()}"])
                 ],
                 ephemeral: false,
             );
+            if ($link = getenv('SLACK_MESSAGE_CONTEXT_LINK')) {
+                $msg->blocks->append(new Context(['text' => $link]));
+            }
+
             $this->postToSlack($msg);
         }
     }
