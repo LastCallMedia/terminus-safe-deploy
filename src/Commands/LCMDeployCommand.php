@@ -51,7 +51,6 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
      * LCM Deploy script by checking configuration
      *
      * @command lcm-deploy:deploy
-     * @alias lcm-deploy
      *
      * @param $site_dot_env Web site name and environment with dot, example - mywebsite.test
      * @option string $force-deploy Run terminus lcm-deploy <site>.<env> --force-deploy to force deployment.

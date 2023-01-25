@@ -11,7 +11,9 @@ class Slack
   // This default URL has access only to channel '#andy-testing-webhooks'
     private const DEFAULT_URL = '68747470733a2f2f686f6f6b732e736c61636b2e636f6d2f73657276696365732f5430343351374334412f4230344c335636344d4a412f38616876685a58716272434554683233654876637a46644c';
 
-    private $url, $maxtries, $interval;
+    private $url;
+    private $maxtries;
+    private $interval;
     private $blocks = [];
 
     public function __construct(?string $url = null, int $maxtries = 5, $interval = 3)

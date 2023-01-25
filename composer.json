@@ -1,6 +1,6 @@
 {
-    "name": "terminus-plugin-lcm/lcm-deploy",
-    "description": "Deploy to environment by checking configuration",
+    "name": "lastcallmedia/terminus-safe-deploy",
+    "description": "Terminus command to deploy after configuration has been checked.",
     "type": "terminus-plugin",
     "license": "MIT",
     "autoload": {
@@ -16,22 +16,15 @@
         "cs": "phpcs --standard=PSR2 -n src",
         "cbf": "phpcbf --standard=PSR2 -n src",
         "lint": "find src -name '*.php' -print0 | xargs -0 -n1 php -l",
-        "unit": "phpunit --colors=always tests",
-        "functional": "TERMINUS_PLUGINS_DIR=.. PATH=tools/bin:$PATH bats -p -t tests/functional",
-        "install-bats": "if [ ! -f tools/bin/bats ] ; then git clone https://github.com/sstephenson/bats.git tools/bats; tools/bats/install.sh tools; fi",
-        "install-tools": [
-            "@install-bats"
-        ],
+
         "test": [
             "@lint",
-            "@unit",
-            "@functional",
             "@cs"
         ]
     },
     "extra": {
         "terminus": {
-            "compatible-version": "^1||^2||^3"
+            "compatible-version": "^3"
         }
     },
     "require": {
