@@ -1,6 +1,6 @@
 <?php
 
-namespace Pantheon\LCMDeployCommand\Model;
+namespace Pantheon\LCMDeployCommand;
 
 /**
  * Simple and lightweight interface to the Slack API.

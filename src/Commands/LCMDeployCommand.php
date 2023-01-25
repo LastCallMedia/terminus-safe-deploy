@@ -8,9 +8,11 @@ use Pantheon\Terminus\Exceptions\TerminusProcessException;
 use Pantheon\Terminus\Site\SiteAwareInterface;
 use Pantheon\Terminus\Site\SiteAwareTrait;
 use Pantheon\Terminus\Commands\StructuredListTrait;
-use Pantheon\Terminus\Commands\Env\DeployCommand;
 
 use Pantheon\LCMDeployCommand\Model\Slack;
+use SlackPhp\BlockKit\Blocks\Divider;
+use SlackPhp\BlockKit\Blocks\Section;
+use SlackPhp\BlockKit\Surfaces\Message;
 
 /**
  * Class LCM Deploy Command.
@@ -22,18 +24,18 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
     use StructuredListTrait;
 
   /**
-   * Determine if it is safe to deploy.
-   *
-   * @command lcm-deploy:check-config
-   */
+  * Determine if it is safe to deploy.
+  *
+  * @command lcm-deploy:check-config
+  */
     public function checkConfig($site_dot_env, $throw = true)
     {
-        // Before Deployment check are there any Configuration changes.
+      // Before Deployment check are there any Configuration changes.
         $this->LCMPrepareEnvironment($site_dot_env);
         $this->requireSiteIsNotFrozen($site_dot_env);
 
-        // If there is a config override, then rerun the command to output the
-        // status.
+      // If there is a config override, then rerun the command to output the
+      // status.
         if ($this->sendCommandViaSshAndParseJsonOutput('drush cst')) {
             $this->drushCommand($site_dot_env, ['cst']);
             if ($throw) {
@@ -44,11 +46,6 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
         } else {
             $this->log()->notice('Configuration is in sync on target environment.');
         }
-    }
-
-    public function isDeployable()
-    {
-        return $this->environment->hasDeployableCode();
     }
 
     /**
@@ -80,56 +77,61 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
            'slack-alert' => false,
         ]
     ) {
-
         $this->LCMPrepareEnvironment($site_dot_env);
         $this->requireSiteIsNotFrozen($site_dot_env);
 
         $environment_name = $this->environment->getName();
-        $previous_env = $this->getPreviusEnv($environment_name);
+        $previous_env = $this->getPreviousEnv($environment_name);
 
         $this->log()->notice(
-            "You are going to deploy code from {previous_env} environment to {env_name} environment.\n",
-            ['env_name' => $environment_name, 'previous_env' => $previous_env ]
+            "Deploying {site_name} from {previous_env} to {env_name}.",
+            [
+              'site_name' => $this->environment->getSite()->getName(),
+              'previous_env' => $previous_env,
+              'env_name' => $environment_name
+            ]
         );
 
         if (!$this->isDeployable()) {
-//            throw new TerminusProcessException('There is no code to deploy.');
+            $this->fail('There is no code to deploy.', true);
         }
 
-        $this->checkConfig($site_dot_env, !$options['force-deploy']);
+        try {
+            $this->checkConfig($site_dot_env, !$options['force-deploy']);
+            $this->deployToEnv($options['deploy-message']);
 
-        // Deploy function.
-        $this->deployToEnv($options['deploy-message']);
+            // Optionally run Configuration import.
+            if ($options['with-cim']) {
+                $this->log()->notice('Clearing Drupal cache on target environment.');
+                $this->drushCommand($site_dot_env, ['cache-rebuild']);
+                $this->log()->notice('Importing configuration on target environment.');
+                $this->drushCommand($site_dot_env, ['config-import', '-y']);
+            }
 
-        // Running Configuration import after deployment.
-        if (!empty($options['with-cim'])) {
-            $this->log()->notice('Clearing Drupal Caches...');
+            // Optionally run DB updates.
+            if ($options['with-updates']) {
+                $this->log()->notice('Running database updates.');
+                $this->drushCommand($site_dot_env, ['updb', '-y']);
+            }
+
+            // Clear cache.
+            $this->log()->notice('Clearing Drupal caches.');
             $this->drushCommand($site_dot_env, ['cache-rebuild']);
-            $this->log()->notice('Running configuration import...');
-            $this->drushCommand($site_dot_env, ['config-import', '-y']);
-        }
 
-        // Running Update scripts if option argument is true.
-        if (!empty($options['with-updates'])) {
-            $this->log()->notice('Running Update scripts...');
-            $this->drushCommand($site_dot_env, ['updb', '-y']);
-        }
-
-        // After all deployment steps need to clear Drupal cache by Default.
-        $this->log()->notice('Clearing Drupal Caches...');
-        $this->drushCommand($site_dot_env, ['cache-rebuild']);
-
-        // Check if clear-env-caches option is set, then need to clear also environment caches.
-        if (!empty($options['clear-env-caches'])) {
-            $this->processWorkflow($this->environment->clearCache());
-            $this->log()->notice(
-                'Environment caches cleared on {env}.',
-                ['env' => $this->environment->getName()]
-            );
+            // Optionally clear environment caches.
+            if ($options['clear-env-caches']) {
+                $this->processWorkflow($this->environment->clearCache());
+                $this->log()->notice(
+                    'Environment caches cleared on {env}.',
+                    ['env' => $this->environment->getName()]
+                );
+            }
+        } catch (\Exception $e) {
+            $this->fail($e->getMessage());
         }
 
         if ($options['slack-alert']) {
-            $this->slackNotification();
+            $this->succeed($options['deploy-message']);
         }
     }
 
@@ -156,6 +158,13 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
         $this->log()->notice($workflow->getMessage());
     }
 
+  /**
+   * Check that environment can be deployed to.
+   */
+    private function isDeployable()
+    {
+        return $this->environment->hasDeployableCode();
+    }
 
   /**
    * Get Previous Environment.
@@ -164,7 +173,7 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
    * @return string
    * @throws TerminusProcessException
    */
-    private function getPreviusEnv($current_env)
+    private function getPreviousEnv($current_env)
     {
         // TODO: make it more generic.
         $env = [
@@ -194,7 +203,7 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
         $this->processWorkflow(
             $this->environment->getWorkflows()->create('do_export', compact('params'))
         );
-      //$this->processWorkflow($this->environment->getBackups()->create(['element' => 'code']));
+        $this->processWorkflow($this->environment->getBackups()->create(['element' => 'code']));
         $this->log()->notice(
             'Created a backup of the {env} environment.',
             ['env' => $this->environment->getName()]
@@ -202,42 +211,66 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
     }
 
   /**
-   * Slack notification function to send notification that code is deployed.
-   *
-   * @return void
-   * @throws TerminusException
-   * @throws TerminusProcessException
+   * Get username.
    */
-    private function slackNotification()
+    private function getUserName()
     {
-        $environment_name = $this->environment->getName();
-        $fields['Terminus Deployment'] = 'Code is Deployed for "' . $this->site->getName()  . '" :yeti-peace:' .
-          'Environments: ' . $this->getPreviusEnv($environment_name) . ' :fast_forward: ' . $this->environment->getName();
+        $user = $this->session()->getUser()->fetch();
+        return $user->getName();
+    }
 
-        $content = [
-          'fields' => $fields,
-          'divider' => true,
-        ];
-
-        $user = $this->session()->getUser();
-        $user_model = $user->fetch();
-        if (!empty($user_model)) {
-            $user_array = $user->serialize();
-            if (empty($user_array['firstname']) && !empty($user_array['lastname'])) {
-                $content['body'] = $user_array['firstname'] . ' ' . $user_array['lastname'];
-            } else {
-                $profile = $user_model->getProfile()->serialize();
-                if (!empty($profile['full_name'])) {
-                    $content['body'] = $profile['full_name'];
-                }
-            }
-            if (!empty($user_array['email'])) {
-                $content['body'] .= ', ' . $user_array['email'];
-            }
+  /**
+   * Fail with option to notify to slack.
+   */
+    private function fail($reason, $notify = false)
+    {
+        if ($notify) {
+            $site_name = $this->environment->getSite()->getName();
+            $target_environment = $this->environment->getName();
+            $source_environment = $this->getPreviousEnv($target_environment);
+            $msg = new Message(
+                ephemeral: false,
+                blocks: [
+                  new Section("🚨Deployment failed: *$site_name* - $source_environment ➤ $target_environment"),
+                  new Section("Reason: `$reason`"),
+                  new Divider(),
+                  new Section("Initiated by: {$this->getUserName()}")
+                ]
+            );
+            $this->postToSlack($msg);
         }
+        throw new TerminusProcessException($reason);
+    }
 
-        // TODO: Slack url is hard coded.
+  /**
+   * Success with option to notify slack.
+   */
+    private function succeed($message, $notify = false)
+    {
+        if ($notify) {
+            $site_name = $this->environment->getSite()->getName();
+            $target_environment = $this->environment->getName();
+            $source_environment = $this->getPreviousEnv($target_environment);
+
+            $msg = new Message(
+                ephemeral: false,
+                blocks: [
+                new Section("✅ Deployment completed: *$site_name* - $source_environment ➤ $target_environment"),
+                new Section("Message: `$message`"),
+                new Divider(),
+                new Section("Initiated by: {$this->getUserName()}")
+                ]
+            );
+            $this->postToSlack($msg);
+        }
+    }
+
+  /**
+   * Post to slack.
+   */
+    private function postToSlack(Message $message)
+    {
         $slack = new Slack();
-        $slack->build($content)->post();
+        $slack->post($message->toJson());
     }
 }
