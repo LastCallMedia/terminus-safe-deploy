@@ -1,13 +1,13 @@
 <?php
 
-namespace Pantheon\LCMDeployCommand\Commands;
+namespace LastCall\TerminusSafeDeploy\Commands;
 
 use Pantheon\Terminus\Commands\Remote\DrushCommand;
 use Pantheon\Terminus\Helpers\LocalMachineHelper;
 use Pantheon\Terminus\Models\Environment;
 use Pantheon\Terminus\Models\Site;
 
-class LcmDrushCommand extends DrushCommand
+class ProtectedDrushCommand extends DrushCommand
 {
     /**
      * @var Site

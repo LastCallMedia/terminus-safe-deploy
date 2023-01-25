@@ -1,14 +1,14 @@
 <?php
 
-namespace Pantheon\LCMDeployCommand\Commands;
+namespace LastCall\TerminusSafeDeploy\Commands;
 
+use LastCall\TerminusSafeDeploy\Slack;
 use Pantheon\Terminus\Commands\WorkflowProcessingTrait;
 use Pantheon\Terminus\Exceptions\TerminusException;
 use Pantheon\Terminus\Exceptions\TerminusProcessException;
 use Pantheon\Terminus\Site\SiteAwareInterface;
 use Pantheon\Terminus\Site\SiteAwareTrait;
 use Pantheon\Terminus\Commands\StructuredListTrait;
-use Pantheon\LCMDeployCommand\Slack;
 use SlackPhp\BlockKit\Blocks\Divider;
 use SlackPhp\BlockKit\Blocks\Section;
 use SlackPhp\BlockKit\Surfaces\Message;
@@ -16,7 +16,7 @@ use SlackPhp\BlockKit\Surfaces\Message;
 /**
  * Creates command for deploying Pantheon sites safely.
  */
-class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
+class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterface
 {
     use SiteAwareTrait;
     use WorkflowProcessingTrait;
@@ -25,7 +25,7 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
     /**
      * Determine if it is safe to deploy.
      *
-     * @command lcm-deploy:check-config
+     * @command safe-deploy:check-config
      */
     public function doCheckConfig($site_dot_env, $throw = true)
     {
@@ -50,7 +50,7 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
     /**
      * LCM Deploy script by checking configuration
      *
-     * @command lcm-deploy:deploy
+     * @command safe-deploy:deploy
      *
      * @param $site_dot_env Web site name and environment with dot, example - mywebsite.test
      * @option string $force-deploy Run terminus lcm-deploy <site>.<env> --force-deploy to force deployment.
@@ -60,7 +60,7 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
      * @option string $with-backup Add --with-backup to back up before deployment.
      * db and source codes before deployment.
      * @option string $deploy-message Add --deploy-message="YOUR MESSAGE" to add deployment note message.
-     *
+     * @option string $slack-alert Add --slack-alert to notify slack about pass/failure.
      *
      */
     public function doCheckAndDeploy(
@@ -168,7 +168,7 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
             ];
             $workflow = $this->environment->deploy($params);
         } else {
-            $workflow = $this->environment->initializeBindings(['annotation' => $deploy_message]));
+            $workflow = $this->environment->initializeBindings(['annotation' => $deploy_message]);
         }
         $this->processWorkflow($workflow);
         $this->log()->notice($workflow->getMessage());
@@ -274,7 +274,7 @@ class LCMDeployCommand extends LcmDrushCommand implements SiteAwareInterface
      */
     private function postToSlack(Message $message)
     {
-        $slack = new Slack();
-        $slack->post($message->toJson());
+        $url = getenv('SLACK_URL');
+        Slack::send($message, $url);
     }
 }

@@ -1,6 +1,8 @@
 <?php
 
-namespace Pantheon\LCMDeployCommand;
+namespace LastCall\TerminusSafeDeploy;
+
+use SlackPhp\BlockKit\Surfaces\Message;
 
 /**
  * Simple and lightweight interface to the Slack API.
@@ -8,156 +10,27 @@ namespace Pantheon\LCMDeployCommand;
 
 class Slack
 {
-  // This default URL has access only to channel '#andy-testing-webhooks'
-    private const DEFAULT_URL = '68747470733a2f2f686f6f6b732e736c61636b2e636f6d2f73657276696365732f5430343351374334412f4230344c335636344d4a412f38616876685a58716272434554683233654876637a46644c';
 
-    private $url;
-    private $maxtries;
-    private $interval;
-    private $blocks = [];
+    const MAX_RETRIES = 5;
+    const RETRY_INTERVAL = 3;
 
-    public function __construct(?string $url = null, int $maxtries = 5, $interval = 3)
+    /**
+     * Send message to Slack channel.
+     */
+    public static function send(Message $message, $url = null)
     {
-        $this->url = $url ?? hex2bin(self::DEFAULT_URL);
-        $this->maxtries = $maxtries;
-        $this->interval = $interval;
-    }
-
-  /**
-   * Build Slack message 'payload' structure from $content array or $content+$type strings.
-   */
-    public function build($content, string $type = 'body')
-    {
-        if (is_string($content)) {
-            $content = [$type => $content];
-        }
-
-        $blocks =& $this->blocks;
-        foreach ($content as $key => $value) {
-            switch (explode('_', $key)[0]) {
-                case 'title':
-                    $blocks[] = [
-                    'type' => 'header',
-                    'text' => [
-                      'type' => 'plain_text',
-                      'text' => $value,
-                    ],
-                    ];
-                    break;
-
-                case 'body':
-                    $blocks[] = [
-                    'type' => 'section',
-                    'text' => [
-                    'type' => 'mrkdwn',
-                    'text' => implode("\n\n", (array) $value),
-                    ],
-                    ];
-                    break;
-
-                case 'thumbnail':
-                    list($url, $title) = array_map('trim', explode('|', "$value|", 3));
-                    $block =& $blocks[array_key_last($blocks)];
-                    $block['accessory'] = [
-                    'type' => 'image',
-                    'image_url' => $url,
-                    'alt_text' => $title,
-                    ];
-                    break;
-
-                case 'image':
-                    list($url, $title) = array_map('trim', explode('|', "$value|", 3));
-                    $blocks[] = [
-                    'type' => 'image',
-                    'title' => [
-                    'type' => 'plain_text',
-                    'text' => $title,
-                    ],
-                    'image_url' => $url,
-                    'alt_text' => $title,
-                    ];
-                    break;
-
-                case 'fields':
-                    $fields = [];
-                    foreach ($value as $label => $text) {
-                        if (!is_numeric($label)) {
-                              $text = "*$label:*\n$text";
-                        }
-                        $fields[] = [
-                        'type' => 'mrkdwn',
-                        'text' => $text,
-                        ];
-                    }
-                    $blocks[] = [
-                    'type' => 'section',
-                    'fields' => $fields,
-                    ];
-                    break;
-
-                case 'notes':
-                    $blocks[] = [
-                    'type' => 'context',
-                    'elements' => [
-                    [
-                    'type' => 'mrkdwn',
-                    'text' => implode("\n\n", (array) $value),
-                    ],
-                    ],
-                    ];
-                    break;
-
-                case 'button':
-                    list($url, $title, $style) = array_map('trim', explode('|', "$value|", 4));
-                    $block =& $blocks[array_key_last($blocks)];
-                    $block['accessory'] = [
-                    'type' => 'button',
-                    'text' => [
-                    'type' => 'plain_text',
-                    'text' => $title,
-                    ],
-                    'action_id' => str_replace(' ', '_', strtolower($title)),
-                    'url' => $url,
-                    ];
-                    if ($style == 'primary' || $style == 'danger') {
-                        $block['accessory']['style'] = $style;
-                    }
-                    break;
-
-                case 'divider':
-                    $blocks[] = [
-                    'type' => 'divider',
-                    ];
-                    break;
-              // End switch.
-            }
-        }
-
-        return $this;
-    }
-
-  /**
-   * Post to Slack.
-   * Payload can be passed as a parameter or set previously via build() method.
-   */
-    public function post(?string $payload = null)
-    {
-        if (!$payload) {
-            $payload = json_encode(['blocks' => $this->blocks], JSON_PRETTY_PRINT | JSON_UNESCAPED_LINE_TERMINATORS);
-            $this->blocks = [];
-        }
-
-      // We will retry for errors that we consider transient.
-      // Full error list: https://curl.se/libcurl/c/libcurl-errors.html
+        $payload = $message->toJson();
+        // We will retry for errors that we consider transient.
+        // Full error list: https://curl.se/libcurl/c/libcurl-errors.html
         $transient_errors = [
-        CURLE_OPERATION_TIMEDOUT,
-        CURLE_COULDNT_RESOLVE_HOST,
-        CURLE_COULDNT_CONNECT,
-        CURLE_HTTP_RETURNED_ERROR,
+            CURLE_OPERATION_TIMEDOUT,
+            CURLE_COULDNT_RESOLVE_HOST,
+            CURLE_COULDNT_CONNECT,
+            CURLE_HTTP_RETURNED_ERROR,
         ];
 
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $this->url);
+        curl_setopt($ch, CURLOPT_URL, $url ?? ($_ENV['SLACK_URL'] ?? ''));
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_TIMEOUT, 5);
@@ -167,9 +40,9 @@ class Slack
         for ($try = 1;;) {
             $result = curl_exec($ch);
             $error = curl_errno($ch);
-          // Check that curl was successful.
+            // Check that curl was successful.
             if ($error == CURLE_OK) {
-              // Check that Slack accepted the post.
+                // Check that Slack accepted the post.
                 if ($result != 'ok') {
                     echo "\nERROR: Slack reported: '$result'\n";
                 }
@@ -178,15 +51,15 @@ class Slack
             $error = CURLE_OPERATION_TIMEDOUT;
             $error_string = curl_strerror($error);
             echo "Slack post failed with cURL error ($error): $error_string - ";
-            if (!in_array($error, $transient_errors) || $try++ > $this->maxtries) {
+            if (!in_array($error, $transient_errors) || $try++ > self::MAX_RETRIES) {
                 echo "Giving up.\n";
                 break;
             }
-            echo "Retrying in {$this->interval} seconds...\n";
-            sleep($this->interval);
+
+            echo "Retrying in {${self::RETRY_INTERVAL}} seconds...\n";
+            sleep(self::RETRY_INTERVAL);
         }
 
         curl_close($ch);
-        return $this;
     }
 }
