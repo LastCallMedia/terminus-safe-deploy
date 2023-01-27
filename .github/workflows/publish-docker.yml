@@ -3,7 +3,10 @@ on:
     push:
         tags:
             - '*'
-
+        branches:
+            - 'main'
+env:
+    DOCKER_HUB_TAG: ${{ github.ref_name == 'main' && 'latest' || github.ref_name }}
 jobs:
     publish:
         runs-on: ubuntu-latest
@@ -13,6 +16,6 @@ jobs:
             - name: Docker Hub Login
               run: docker login -u ${{secrets.DOCKER_HUB_USERNAME}} -p ${{secrets.DOCKER_HUB_TOKEN}}
             - name: Build Image
-              run: docker build -t lastcallmedia/terminus-safe-deploy:${{ github.ref_name }} --build-arg plugin_tag=${{ github.ref_name }} .
+              run: docker build -t lastcallmedia/terminus-safe-deploy:${{ env.DOCKER_HUB_TAG }} --build-arg plugin_tag=${{ github.ref_name }} .
             - name: Push Image
-              run: docker push lastcallmedia/terminus-safe-deploy:${{ github.ref_name }}
+              run: docker push lastcallmedia/terminus-safe-deploy:${{ env.DOCKER_HUB_TAG }}
