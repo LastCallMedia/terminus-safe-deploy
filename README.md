@@ -15,6 +15,8 @@ There are a number of options available for this command:
 - `--clear-env-caches`: Clear Pantheon environment cache after deploy
 - `--with-backup`: Takes a backup prior to initiating the deployment
 - `--slack-alert`: Adds ability to alert a channel in slack on the success/failure of deployment
+- `--slack-url`: Specify a url to use for posting to slack
+    - This functionality can also be achieved by setting a SLACK_URL environment variable
 
 ## Installation
 ```
@@ -28,10 +30,9 @@ terminus self:plugin:install SOME_DIRECTORY
 ```
 
 ## Slack
-This command can notify a slack channel on the success/failure of a deployment. In order to do this, you must do two things:
+This command can notify a Slack channel on the success/failure of a deployment. In order to do this, you must do two things:
 - Use the `--slack-alert` flag when running the command.
-- Have a `SLACK_URL` environment variable that stores the url used to post to the desired channel.
-    - This was implemented this way because organizationally we store the slack url as a variable in GitHub Actions. Future release will include the option to use a `--slack-url` option and specify the url that way.
+- Have a `SLACK_URL` environment variable, or set the `--slack-url` parameter to the url that Slack provides for posting to your channel.
 
 ## Docker
 A docker image with the plugin preinstalled can be found [here](https://hub.docker.com/repository/docker/lastcallmedia/terminus-safe-deploy/general). Whenever a new tag is pushed to the repository, a

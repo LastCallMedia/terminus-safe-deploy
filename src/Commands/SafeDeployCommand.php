@@ -61,6 +61,7 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
      * db and source codes before deployment.
      * @option string $deploy-message Add --deploy-message="YOUR MESSAGE" to add deployment note message.
      * @option string $slack-alert Add --slack-alert to notify slack about pass/failure.
+     * @option string $slack-url Add --slack-url to specify the url to post to in slack.
      *
      */
     public function doCheckAndDeploy(
@@ -73,14 +74,17 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
             'with-backup' => false,
             'deploy-message' => 'Deploy from Terminus by lcm-deploy',
             'slack-alert' => false,
+            'slack-url' => null,
         ]
     ) {
+        $slack_url = $options['slack-url'] ?? getenv('SLACK_URL');
+
         try {
             $this->checkAndDeploy($site_dot_env, $options);
         } catch (\Exception $e) {
-            $this->fail($e->getMessage(), $options['slack-alert']);
+            $this->fail($e->getMessage(), $options['slack-alert'], $slack_url);
         }
-        $this->succeed($options['deploy-message'], $options['slack-alert']);
+        $this->succeed($options['deploy-message'], $options['slack-alert'], $slack_url);
     }
 
     /**
@@ -96,6 +100,7 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
             'with-backup' => false,
             'deploy-message' => 'Deploy from Terminus by lcm-deploy',
             'slack-alert' => false,
+            'slack-url' => null,
         ]
     ) {
         $this->LCMPrepareEnvironment($site_dot_env);
@@ -226,7 +231,7 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
     /**
      * Fail with option to notify to slack.
      */
-    private function fail($reason, $notify = false)
+    private function fail($reason, $notify = false, $slack_url = null)
     {
         if ($notify) {
             $site_name = $this->environment->getSite()->getName();
@@ -243,7 +248,7 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
             if ($link = getenv('SLACK_MESSAGE_CONTEXT_LINK')) {
                 $msg->blocks->append(new Context(['text' => $link]));
             }
-            $this->postToSlack($msg);
+            $this->postToSlack($msg, $slack_url);
         }
         throw new TerminusProcessException($reason);
     }
@@ -251,7 +256,7 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
     /**
      * Success with option to notify slack.
      */
-    private function succeed($message, $notify = false)
+    private function succeed($message, $notify = false, $slack_url = null)
     {
         if ($notify) {
             $site_name = $this->environment->getSite()->getName();
@@ -270,16 +275,15 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
                 $msg->blocks->append(new Context(['text' => $link]));
             }
 
-            $this->postToSlack($msg);
+            $this->postToSlack($msg, $slack_url);
         }
     }
 
     /**
      * Post to slack.
      */
-    private function postToSlack(Message $message)
+    private function postToSlack(Message $message, $post_url)
     {
-        $url = getenv('SLACK_URL');
-        Slack::send($message, $url);
+        Slack::send($message, $post_url);
     }
 }
