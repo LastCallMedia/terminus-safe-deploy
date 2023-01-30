@@ -48,7 +48,6 @@ class Slack
                 }
                 break;
             }
-            $error = CURLE_OPERATION_TIMEDOUT;
             $error_string = curl_strerror($error);
             echo "Slack post failed with cURL error ($error): $error_string - ";
             if (!in_array($error, $transient_errors) || $try++ > self::MAX_RETRIES) {
