@@ -23,6 +23,21 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
     use StructuredListTrait;
 
     /**
+     * Deployment start time.
+     *
+     * @var int
+     */
+    private int $startTime;
+
+    /**
+     * Deployment end time.
+     *
+     * @var int
+     */
+    private int $endTime;
+
+
+    /**
      * Determine if it is safe to deploy.
      *
      * @command safe-deploy:check-config
@@ -106,9 +121,10 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
             'with-maintenance-mode' => false
         ]
     ) {
-        // Calculate and outPut deployment time.
-        $startTime = time();
-        $startDate = date("H:i:s (Y-m-d)",$startTime);
+
+        // Calculate and output deployment time.
+        $this->startTime = time();
+        $startDate = date("H:i:s (Y-m-d)",$this->startTime);
         $this->log()->notice("Deployment started at {$startDate}.");
 
         $this->LCMPrepareEnvironment($site_dot_env);
@@ -181,10 +197,10 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
             );
         }
 
-        $endTime=time();
-        $execution_time = $this->GetDeploymentPeriodTime($startTime, $endTime);
+        $this->endTime = time();
+        $execution_time = $this->GetDeploymentPeriodTime();
 
-        $endDate = date("H:i:s (Y-m-d)",$endTime);
+        $endDate = date("H:i:s (Y-m-d)",$this->endTime);
         $this->log()->notice("Deployment took $execution_time | at {$endDate}.");
     }
 
@@ -275,6 +291,11 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
             if ($link = getenv('SLACK_MESSAGE_CONTEXT_LINK')) {
                 $msg->blocks->append(new Context(['text' => $link]));
             }
+            // Check is environment in maintenance_mode?
+            $response = $this->sendCommandViaSshAndParseJsonOutput('drush sget system.maintenance_mode');
+            if (!empty($response->{'system.maintenance_mode'}) && $response->{'system.maintenance_mode'} == 1) {
+              $msg->blocks->append(new Context(['text' => "@channel \n🚨 THE SITE IS STILL IN MAINTENANCE MODE AND NEEDS IMMEDIATE ATTENTION 🚨"]));
+            }
             $this->postToSlack($msg, $slack_url);
         }
         throw new TerminusProcessException($reason);
@@ -293,13 +314,25 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
             $msg = new Message(
                 blocks: [
                     new Context(['text' => "✅ Deployment completed: *$site_name* - $source_environment ➤ $target_environment"]),
-                    new Section("Message: `$message`"),
-                    new Context(['text' => "Initiated by: {$this->getUserName()}"])
+                    new Section("Message: `$message`")
                 ],
                 ephemeral: false,
             );
+            if (!empty($this->startTime) && !empty($this->endTime)) {
+              $startDate = date("H:i:s (Y-m-d)",$this->startTime);
+              $endDate = date("H:i:s (Y-m-d)",$this->endTime);
+              $duration = $this->GetDeploymentPeriodTime();
+              $msg->blocks->append(new Context(["text" => "Deployment took $duration | from $startDate to $endDate"]));
+            }
+
+            $msg->blocks->append(new Context(['text' => "Initiated by: {$this->getUserName()}"]));
+
             if ($link = getenv('SLACK_MESSAGE_CONTEXT_LINK')) {
                 $msg->blocks->append(new Context(['text' => $link]));
+            }
+            $response = $this->sendCommandViaSshAndParseJsonOutput('drush sget system.maintenance_mode');
+            if (!empty($response->{'system.maintenance_mode'}) && $response->{'system.maintenance_mode'} == 1) {
+              $msg->blocks->append(new Context(['text' => "@channel \n🚨 THE SITE IS STILL IN MAINTENANCE MODE AND NEEDS IMMEDIATE ATTENTION 🚨"]));
             }
 
             $this->postToSlack($msg, $slack_url);
@@ -317,14 +350,12 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
   /**
    * Function returning start and end times diff with user-friendly output.
    *
-   * @param $startTime 'start Timestamp'
-   * @param $endTime 'end Timestamp'
    * @return string
    */
-    private function GetDeploymentPeriodTime($startTime, $endTime): string
+    private function GetDeploymentPeriodTime(): string
     {
 
-      $diffSeconds = floor($endTime - $startTime);
+      $diffSeconds = floor($this->endTime - $this->startTime);
 
       $hours = floor($diffSeconds / 3600);
       $minutes = floor(floor($diffSeconds / 60) % 60);
@@ -337,7 +368,7 @@ class SafeDeployCommand extends ProtectedDrushCommand implements SiteAwareInterf
       if ($minutes > 0) {
         $returnString .= $minutes . "m ";
       }
-      $returnString .= $seconds . "s ";
+      $returnString .= $seconds . "s";
 
       return $returnString;
     }
